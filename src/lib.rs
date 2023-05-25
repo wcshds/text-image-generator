@@ -49,10 +49,10 @@ struct Generator {
 #[pymethods]
 impl Generator {
     #[new]
-    #[pyo3(signature = (font_dir="./font", main_font_list_file="./main_font.txt", chinese_ch_file="./chinese_ch.txt", latin_corpus_file=None, symbol_file=None))]
+    #[pyo3(signature = (font_dir="./font", main_font_list_file=None, chinese_ch_file="./chinese_ch.txt", latin_corpus_file=None, symbol_file=None))]
     fn py_new(
         font_dir: &str,
-        main_font_list_file: &str,
+        main_font_list_file: Option<&str>,
         chinese_ch_file: &str,
         latin_corpus_file: Option<&str>,
         symbol_file: Option<&str>,
@@ -138,11 +138,16 @@ impl Generator {
         } else {
             None
         };
-        let main_font_list: Vec<_> = fs::read_to_string(main_font_list_file)
-            .unwrap()
-            .split("\n")
-            .map(String::from)
-            .collect();
+
+        let main_font_list: Vec<_> = if let Some(main_font_list_file) = main_font_list_file {
+            fs::read_to_string(main_font_list_file)
+                .unwrap()
+                .split("\n")
+                .map(String::from)
+                .collect()
+        } else {
+            vec![]
+        };
 
         Ok(Self {
             font_system,
@@ -243,7 +248,9 @@ impl Generator {
             .map(|(ch, font_list)| (ch, Some(font_list)))
             .collect();
 
-        let res = self.font_util.map_chinese_corpus_with_attrs(&temp, &self.main_font_list);
+        let res = self
+            .font_util
+            .map_chinese_corpus_with_attrs(&temp, &self.main_font_list);
 
         // let mut line_text = String::with_capacity(text.len());
         let mut line_text = String::new();

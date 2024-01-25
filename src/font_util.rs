@@ -1,10 +1,12 @@
 use std::fs;
 
-use cosmic_text::{Attrs, Family, FontSystem};
+use cosmic_text::{Attrs, AttrsOwned, Family, FontSystem};
 use once_cell::sync::Lazy;
 use rand::seq::{IteratorRandom, SliceRandom};
 use rand_distr::WeightedAliasIndex;
 use serde::{Deserialize, Serialize};
+
+use crate::utils::InternalAttrsOwned;
 
 pub struct FontUtil {
     font_system: FontSystem,
@@ -14,16 +16,26 @@ impl FontUtil {
     pub fn new(font_system: &FontSystem) -> FontUtil {
         FontUtil {
             font_system: FontSystem::new_with_locale_and_db(
-                font_system.locale().to_owned(),
-                font_system.db().to_owned(),
+                font_system.locale().to_string(),
+                font_system.db().clone(),
             ),
         }
     }
 
-    pub fn get_full_font_list(&self) -> Vec<String> {
+    pub fn get_full_font_list(&self) -> Vec<InternalAttrsOwned> {
         let mut res = vec![];
         for face in self.font_system.db().faces() {
-            res.push(face.families.iter().next().unwrap().0.to_string())
+            let font_name = &face.families.iter().next().unwrap().0;
+            let font_style = face.style;
+            let font_weight = face.weight;
+            let font_stretch = face.stretch;
+
+            let attrs = Attrs::new()
+                .family(Family::Name(&font_name))
+                .style(font_style)
+                .weight(font_weight)
+                .stretch(font_stretch);
+            res.push(InternalAttrsOwned::new(AttrsOwned::new(attrs)))
         }
 
         res
@@ -55,6 +67,42 @@ impl FontUtil {
         return false;
     }
 
+    pub fn map_chinese_corpus_with_attrs<'a, S1, S2, V>(
+        &mut self,
+        ch_list_with_font_name_list: &'a Vec<(S1, Option<&Vec<InternalAttrsOwned>>)>,
+        main_font_list: &'a V,
+    ) -> Vec<(&'a S1, Attrs<'a>)>
+    where
+        S1: AsRef<str> + Sized,
+        S2: AsRef<str> + 'a,
+        V: AsRef<[S2]>,
+    {
+        let main_font = main_font_list
+            .as_ref()
+            .choose(&mut rand::thread_rng())
+            .unwrap();
+
+        let mut res = vec![];
+
+        for (text, font_name_list) in ch_list_with_font_name_list {
+            if let Some(content) = font_name_list {
+                if content.len() != 0 {
+                    res.push((
+                        text,
+                        content.choose(&mut rand::thread_rng()).unwrap().as_attrs(),
+                    ));
+                } else {
+                    // todo: use more elegant way to use main font
+                    res.push((text, self.font_name_to_attrs(main_font)));
+                }
+            } else {
+                res.push((text, self.font_name_to_attrs(main_font)));
+            }
+        }
+
+        res
+    }
+
     pub fn font_name_to_attrs<'a, S: AsRef<str>>(&self, font_name: &'a S) -> Attrs<'a> {
         let face_info = self
             .font_system
@@ -68,42 +116,6 @@ impl FontUtil {
             .family(Family::Name(font_name.as_ref()))
             .weight(face_info.weight)
             .style(face_info.style)
-    }
-
-    pub fn map_chinese_corpus_with_attrs<'a, S1, S2, S3, V>(
-        &mut self,
-        ch_list_with_font_name_list: &'a Vec<(S1, Option<&Vec<S2>>)>,
-        main_font_list: &'a V,
-    ) -> Vec<(&'a S1, Attrs<'a>)>
-    where
-        S1: AsRef<str> + Sized,
-        S2: AsRef<str> + Sized,
-        S3: AsRef<str> + 'a,
-        V: AsRef<[S3]>,
-    {
-        let main_font = main_font_list
-            .as_ref()
-            .choose(&mut rand::thread_rng())
-            .unwrap();
-
-        let mut res = vec![];
-
-        for (text, font_name_list) in ch_list_with_font_name_list {
-            if let Some(content) = font_name_list {
-                if content.len() != 0 {
-                    res.push((
-                        text.clone(),
-                        self.font_name_to_attrs(content.choose(&mut rand::thread_rng()).unwrap()),
-                    ));
-                } else {
-                    res.push((text.clone(), self.font_name_to_attrs(main_font)));
-                }
-            } else {
-                res.push((text.clone(), self.font_name_to_attrs(main_font)));
-            }
-        }
-
-        res
     }
 }
 

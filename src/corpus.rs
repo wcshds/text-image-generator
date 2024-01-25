@@ -4,6 +4,8 @@ use indexmap::IndexMap;
 use rand::{self, seq::SliceRandom, Rng};
 use rand_distr::{Distribution, WeightedAliasIndex};
 
+use crate::utils::InternalAttrsOwned;
+
 pub fn get_random_french_text<'a, S1, S2, S3>(
     ch_dict: &'a IndexMap<S1, Vec<S2>>,
     weights: &WeightedAliasIndex<f64>,
@@ -41,22 +43,21 @@ where
     res
 }
 
-pub fn get_random_chinese_text_with_font_list<'a, S1, S2, S3>(
-    ch_dict: &'a IndexMap<S1, Vec<S2>>,
+pub fn get_random_chinese_text_with_font_list<'a, S1, S2>(
+    ch_dict: &'a IndexMap<S1, Vec<InternalAttrsOwned>>,
     weights: &WeightedAliasIndex<f64>,
-    symbol: Option<&'a Vec<S3>>,
+    symbol: Option<&'a Vec<S2>>,
     range: RangeInclusive<u32>,
-) -> Vec<(&'a str, Option<&'a Vec<S2>>)>
+) -> Vec<(&'a str, Option<&'a Vec<InternalAttrsOwned>>)>
 where
     S1: AsRef<str>,
     S2: AsRef<str>,
-    S3: AsRef<str>,
 {
     let mut rng = rand::thread_rng();
 
     let num = rng.gen_range(range);
 
-    let mut res = Vec::with_capacity(150);
+    let mut res = Vec::with_capacity(15);
     if let Some(symbol_content) = symbol {
         let insert_idx = rng.gen_range(2..=num);
         let symbol = symbol_content.choose(&mut rng).unwrap();
@@ -78,14 +79,13 @@ where
     res
 }
 
-pub fn wrap_text_with_font_list<'a, 'b, S1, S2, S3>(
+pub fn wrap_text_with_font_list<'a, 'b, S1, S2>(
     text: &'a S1,
-    ch_dict: &'b IndexMap<S2, Vec<S3>>,
-) -> Vec<(&'a str, Option<&'b Vec<S3>>)>
+    ch_dict: &'b IndexMap<S2, Vec<InternalAttrsOwned>>,
+) -> Vec<(&'a str, Option<&'b Vec<InternalAttrsOwned>>)>
 where
     S1: AsRef<str> + ?Sized,
     S2: std::hash::Hash + std::cmp::Eq + std::borrow::Borrow<str>,
-    S3: AsRef<str>,
 {
     let bytes = text.as_ref().as_bytes();
     let mut res = vec![];

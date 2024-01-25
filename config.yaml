@@ -1,0 +1,30 @@
+FONT:
+  font_dir: "./font"
+  chinese_ch_file_path: "./ch.txt"
+  main_font_list_file_path: "./main_font.txt"
+  font_size: 50
+  line_height: 64
+  font_img_width: 2000
+  font_img_height: 64
+
+CV:
+  box_prob: 0.1
+  perspective_prob: 0.2
+  perspective_x: [-15.0, 15.0, "g"]
+  perspective_y: [-15.0, 15.0, "g"]
+  perspective_z: [-3.0, 3.0, "g"]
+  blur_prob: 0.1
+  blur_sigma: [0.0, 1.5, "u"]
+  filter_prob: 0.2
+  emboss_prob: 0.4
+  sharp_prob: 0.6
+
+MERGE:
+  bg_dir: "./synth_text/background"
+  bg_height: 64
+  bg_width: 1000
+  height_diff: 10
+  bg_alpha: [0.5, 1.5, "g"]
+  bg_beta: [-50, 50, "g"]
+  font_alpha: [0.2, 1.0, "u"]
+  reverse_prob: 0.5

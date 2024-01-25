@@ -5,13 +5,16 @@ use cosmic_text::{
     Attrs, AttrsList, Buffer, BufferLine, Color, Family, FontSystem, Metrics, Style, SwashCache,
     Weight,
 };
+use cv_util::CvUtil;
 use font_util::FontUtil;
 use image_process::generate_image;
 use indexmap::IndexMap;
-use numpy::{PyArray, PyArray3};
+use merge_util::{BgFactory, MergeUtil};
+use numpy::{PyArray, PyArrayDyn};
+use parse_config::Config;
 use pyo3::{prelude::*, types::PyList};
 use rand_distr::WeightedAliasIndex;
-use utils::IndexMapStrUtils;
+use utils::InternalAttrsOwned;
 
 use crate::{
     init::{init_ch_dict, init_ch_dict_and_weight},
@@ -19,9 +22,13 @@ use crate::{
 };
 
 pub mod corpus;
+pub mod cv_util;
+pub mod effect_helper;
 pub mod font_util;
 pub mod image_process;
 pub mod init;
+pub mod merge_util;
+pub mod parse_config;
 pub mod utils;
 
 #[pyclass]
@@ -31,17 +38,23 @@ struct Generator {
     editor_buffer: Buffer,
     swash_cache: SwashCache,
     #[pyo3(get)]
-    font_list: Vec<String>,
+    cv_util: CvUtil,
     #[pyo3(get)]
-    chinese_ch_dict: IndexMap<String, Vec<String>>,
+    merge_util: MergeUtil,
+    #[pyo3(get)]
+    bg_factory: BgFactory,
+    #[pyo3(get)]
+    font_list: Vec<InternalAttrsOwned>,
+    #[pyo3(get)]
+    chinese_ch_dict: IndexMap<String, Vec<InternalAttrsOwned>>,
     chinese_ch_weights: WeightedAliasIndex<f64>,
     #[pyo3(get)]
     latin_corpus: Option<String>,
     symbol: Option<Vec<String>>,
     #[pyo3(get)]
-    latin_ch_dict: Option<IndexMap<String, Vec<String>>>,
+    latin_ch_dict: Option<IndexMap<String, Vec<InternalAttrsOwned>>>,
     #[pyo3(get)]
-    symbol_dict: Option<IndexMap<String, Vec<String>>>,
+    symbol_dict: Option<IndexMap<String, Vec<InternalAttrsOwned>>>,
     #[pyo3(get)]
     main_font_list: Vec<String>, // 若字符的字體列表爲空，則隨機從 main_font_list 中擇一字體
 }
@@ -49,29 +62,25 @@ struct Generator {
 #[pymethods]
 impl Generator {
     #[new]
-    #[pyo3(signature = (font_dir="./font", main_font_list_file=None, chinese_ch_file="./chinese_ch.txt", latin_corpus_file=None, symbol_file=None))]
-    fn py_new(
-        font_dir: &str,
-        main_font_list_file: Option<&str>,
-        chinese_ch_file: &str,
-        latin_corpus_file: Option<&str>,
-        symbol_file: Option<&str>,
-    ) -> PyResult<Self> {
+    #[pyo3(signature = (config_path="./config.yaml"))]
+    fn py_new(config_path: &str) -> PyResult<Self> {
+        let config = Config::from_yaml(config_path);
+
         let mut font_system = FontSystem::new();
         let db = font_system.db_mut();
-        db.load_fonts_dir(font_dir);
+        db.load_fonts_dir(&config.font_dir);
 
         // 加載 latin 語料文件
-        let latin_corpus_file_data = if let Some(latin_corpus_file) = latin_corpus_file {
-            let data = fs::read_to_string(latin_corpus_file).unwrap();
+        let latin_corpus_file_data = if config.latin_corpus_file_path.len() > 0 {
+            let data = fs::read_to_string(&config.latin_corpus_file_path).unwrap();
             Some(data)
         } else {
             None
         };
 
         // 加載 symbol 文件
-        let symbol_file_data = if let Some(symbol_file) = symbol_file {
-            let data: Vec<_> = fs::read_to_string(symbol_file)
+        let symbol_file_data = if config.symbol_file_path.len() > 0 {
+            let data: Vec<_> = fs::read_to_string(&config.symbol_file_path)
                 .unwrap()
                 .trim_matches('\n')
                 .split("\n")
@@ -94,7 +103,7 @@ impl Generator {
         {
             let mut font_util = font_util::FontUtil::new(&font_system);
             full_font_list = font_util.get_full_font_list();
-            chinesecharacter_file_data = fs::read_to_string(chinese_ch_file).unwrap();
+            chinesecharacter_file_data = fs::read_to_string(config.chinese_ch_file_path).unwrap();
             println!("正在分析字體所包含的字符...");
             (chinese_ch_dict, chinese_ch_weights) = init_ch_dict_and_weight(
                 &mut font_util,
@@ -127,21 +136,10 @@ impl Generator {
         let mut buffer = Buffer::new(&mut font_system, Metrics::new(50.0, 64.0));
         buffer.set_size(&mut font_system, 2500.0, 64.0);
 
-        let chinese_ch_dict = chinese_ch_dict.clone_to_string();
-        let latin_ch_dict = if let Some(content) = latin_ch_dict {
-            Some(content.clone_to_string())
-        } else {
-            None
-        };
-        let symbol_dict = if let Some(content) = symbol_dict {
-            Some(content.clone_to_string())
-        } else {
-            None
-        };
-
-        let main_font_list: Vec<_> = if let Some(main_font_list_file) = main_font_list_file {
-            fs::read_to_string(main_font_list_file)
+        let main_font_list: Vec<_> = if config.main_font_list_file_path.len() > 0 {
+            fs::read_to_string(&config.main_font_list_file_path)
                 .unwrap()
+                .trim()
                 .split("\n")
                 .map(String::from)
                 .collect()
@@ -155,21 +153,62 @@ impl Generator {
             editor_buffer: buffer,
             swash_cache,
             font_list: full_font_list,
-            chinese_ch_dict,
+            chinese_ch_dict: chinese_ch_dict
+                .into_iter()
+                .map(|(ch, dic)| (ch.to_string(), dic))
+                .collect(),
             chinese_ch_weights,
-            latin_corpus: latin_corpus_file_data,
-            symbol: symbol_file_data,
-            latin_ch_dict,
-            symbol_dict,
+            latin_corpus: latin_corpus_file_data.clone(),
+            symbol: symbol_file_data.clone(),
+            latin_ch_dict: if let Some(ch_dict) = latin_ch_dict {
+                Some(
+                    ch_dict
+                        .into_iter()
+                        .map(|(ch, dic)| (ch.to_string(), dic.clone()))
+                        .collect(),
+                )
+            } else {
+                None
+            },
+            symbol_dict: if let Some(symbol_dict) = symbol_dict {
+                Some(
+                    symbol_dict
+                        .into_iter()
+                        .map(|(ch, dic)| (ch.to_string(), dic.clone()))
+                        .collect(),
+                )
+            } else {
+                None
+            },
             main_font_list,
+            cv_util: CvUtil {
+                box_prob: config.box_prob,
+                perspective_prob: config.perspective_prob,
+                perspective_x: config.perspective_x,
+                perspective_y: config.perspective_y,
+                perspective_z: config.perspective_z,
+                blur_prob: config.blur_prob,
+                blur_sigma: config.blur_sigma,
+                filter_prob: config.filter_prob,
+                emboss_prob: config.emboss_prob,
+                sharp_prob: config.sharp_prob,
+            },
+            merge_util: MergeUtil {
+                height_diff: config.height_diff,
+                bg_alpha: config.bg_alpha,
+                bg_beta: config.bg_beta,
+                font_alpha: config.font_alpha,
+                reverse_prob: config.reverse_prob,
+            },
+            bg_factory: BgFactory::new(config.bg_dir, config.bg_height, config.bg_width),
         })
     }
 
-    fn set_latin_ch_dict(&mut self, ch: String, font_list: Vec<String>) {
-        if let Some(content) = &mut self.latin_ch_dict {
-            *content.entry(ch).or_insert(vec![]) = font_list;
-        }
-    }
+    // fn set_latin_ch_dict(&mut self, ch: String, font_list: Vec<String>) {
+    //     if let Some(content) = &mut self.latin_ch_dict {
+    //         *content.entry(ch).or_insert(vec![]) = font_list;
+    //     }
+    // }
 
     // min: 指定生成文本的字數下限
     // max: 指定生成文本的字數上限
@@ -196,7 +235,15 @@ impl Generator {
             let list: Py<PyList> = PyList::empty(py).into();
             for (ch, font_list) in chinese_text_with_font_list {
                 if let Some(content) = font_list {
-                    list.as_ref(py).append((ch, content)).unwrap();
+                    list.as_ref(py)
+                        .append((
+                            ch,
+                            content
+                                .iter()
+                                .map(|each| each.to_tuple())
+                                .collect::<Vec<_>>(),
+                        ))
+                        .unwrap();
                 } else {
                     list.as_ref(py)
                         .append::<(&str, &Vec<String>)>((ch, &vec![]))
@@ -208,16 +255,21 @@ impl Generator {
         })
     }
 
-    // min: 指定生成文本的字數下限
-    // max: 指定生成文本的字數上限
-    // add_extra_symbol: 是否額外爲生成文本增加標點
     fn wrap_text_with_font_list(&self, text: &str) -> PyResult<Py<PyList>> {
         let chinese_text_with_font_list = wrap_text_with_font_list(text, &self.chinese_ch_dict);
         Python::with_gil(|py| -> PyResult<Py<PyList>> {
             let list: Py<PyList> = PyList::empty(py).into();
             for (ch, font_list) in chinese_text_with_font_list {
                 if let Some(content) = font_list {
-                    list.as_ref(py).append((ch, content)).unwrap();
+                    list.as_ref(py)
+                        .append((
+                            ch,
+                            content
+                                .iter()
+                                .map(|each| each.to_tuple())
+                                .collect::<Vec<_>>(),
+                        ))
+                        .unwrap();
                 } else {
                     list.as_ref(py)
                         .append::<(&str, &Vec<String>)>((ch, &vec![]))
@@ -229,13 +281,15 @@ impl Generator {
         })
     }
 
-    #[pyo3(signature = (text_with_font_list, text_color=(0, 0, 0), background_color=(255, 255, 255)))]
-    fn gen_image_from_text_with_font_list(
+    #[pyo3(signature = (text_with_font_list, text_color=(0, 0, 0), background_color=(255, 255, 255), apply_effect=false))]
+    fn gen_image_from_text_with_font_list<'py>(
         &mut self,
-        text_with_font_list: Vec<(String, Vec<String>)>,
+        text_with_font_list: Vec<(String, Vec<(String, u16, u16, u16)>)>,
         text_color: (u8, u8, u8),
         background_color: (u8, u8, u8),
-    ) -> PyResult<Py<PyArray3<u8>>> {
+        apply_effect: bool,
+        _py: Python<'py>,
+    ) -> &'py PyArrayDyn<u8> {
         self.editor_buffer.lines.clear();
 
         let attrs = Attrs::new()
@@ -244,8 +298,22 @@ impl Generator {
             .weight(Weight::NORMAL);
 
         let temp: Vec<_> = text_with_font_list
+            .into_iter()
+            .map(|(ch, font_list)| {
+                (
+                    ch,
+                    Some(
+                        font_list
+                            .into_iter()
+                            .map(|each| InternalAttrsOwned::from_tuple(each))
+                            .collect::<Vec<_>>(),
+                    ),
+                )
+            })
+            .collect();
+        let temp = temp
             .iter()
-            .map(|(ch, font_list)| (ch, Some(font_list)))
+            .map(|(ch, font_list)| (ch, font_list.as_ref()))
             .collect();
 
         let res = self
@@ -262,9 +330,11 @@ impl Generator {
             attrs_list.add_span(start..end, attrs);
         }
 
-        self.editor_buffer
-            .lines
-            .push(BufferLine::new(&line_text, attrs_list));
+        self.editor_buffer.lines.push(BufferLine::new(
+            &line_text,
+            attrs_list,
+            cosmic_text::Shaping::Advanced,
+        ));
 
         self.editor_buffer.shape_until_scroll(&mut self.font_system);
 
@@ -280,24 +350,40 @@ impl Generator {
             background_color,
         );
 
-        // img.save("internal.png").unwrap();
+        if apply_effect {
+            let gray = image::imageops::grayscale(&img);
+            let font_img = self.cv_util.apply_effect(gray);
+            let bg_img = self.bg_factory.random();
+            let merge_img = self.merge_util.poisson_edit(&font_img, bg_img);
+
+            let img_height = merge_img.height() as usize;
+            let img_width = merge_img.width() as usize;
+
+            let raw = merge_img.into_vec();
+
+            let initial = PyArray::from_vec(_py, raw);
+            let res = initial.reshape([img_height, img_width]).unwrap();
+
+            return res.to_dyn();
+        }
 
         let img_height = img.height() as usize;
         let img_width = img.width() as usize;
 
         let raw = img.into_vec();
 
-        Python::with_gil(|py| -> PyResult<Py<PyArray3<u8>>> {
-            let initial = PyArray::from_vec(py, raw);
-            let res: Py<PyArray3<u8>> = initial.reshape([img_height, img_width, 3]).unwrap().into();
-
-            Ok(res)
-        })
+        let initial = PyArray::from_vec(_py, raw);
+        let res = initial.reshape([img_height, img_width, 3]).unwrap();
+        res.to_dyn()
     }
 }
+
+#[pyclass]
+struct ImageEffect {}
 
 #[pymodule]
 fn text_image_generator(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Generator>()?;
+    m.add_class::<BgFactory>()?;
     Ok(())
 }

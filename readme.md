@@ -41,7 +41,7 @@ cd text-image-generator
 maturin build --release
 ```
 
-在生成 whl 文件後，透過 pip 命令安裝即可。或者可以在 release 中下載預先編譯好的 whl 文件安裝。
+在生成 whl 文件後，透過 pip 命令安裝即可。
 
 ```
 pip install text_image_generator-0.1.0-cp310-cp310-manylinux_2_34_x86_64.whl

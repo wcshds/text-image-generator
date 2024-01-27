@@ -44,7 +44,7 @@ pub fn init_ch_dict_and_weight<'a, 'b>(
     IndexMap<&'b str, Vec<InternalAttrsOwned>>,
     WeightedAliasIndex<f64>,
 ) {
-    let mut default_frequence = f64::INFINITY;
+    let mut is_all_freq_empty = true;
     let mut ch_list_and_weight: Vec<_> = character_file_data
         .trim()
         .split("\n")
@@ -53,13 +53,11 @@ pub fn init_ch_dict_and_weight<'a, 'b>(
             let first = split.next().unwrap();
             let second = match split.next() {
                 Some(value) => {
+                    is_all_freq_empty = false;
                     let value = value.parse::<f64>().unwrap();
                     if value <= 0.0 {
                         Frequence::MIN
                     } else {
-                        if value < default_frequence {
-                            default_frequence = value;
-                        }
                         Frequence::NUM(value)
                     }
                 }
@@ -69,9 +67,6 @@ pub fn init_ch_dict_and_weight<'a, 'b>(
             (first, second, vec![])
         })
         .collect();
-    if default_frequence.is_infinite() {
-        default_frequence = 1.0;
-    }
 
     for (ch_str, _, ch_font_list) in ch_list_and_weight.iter_mut() {
         for font_attrs in full_font_list.iter() {
@@ -90,7 +85,13 @@ pub fn init_ch_dict_and_weight<'a, 'b>(
             .iter()
             .map(|(_, weight, _)| match weight {
                 Frequence::NUM(value) => *value,
-                Frequence::MIN => default_frequence,
+                Frequence::MIN => {
+                    if is_all_freq_empty {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                }
             })
             .collect::<Vec<_>>(),
     )

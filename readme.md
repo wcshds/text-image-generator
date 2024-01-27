@@ -50,6 +50,9 @@ pip install text_image_generator-0.1.0-cp310-cp310-manylinux_2_34_x86_64.whl
 # 使用前的準備
 
 1. 事先需要找到足夠多的字體文件放到目錄中，這些字體文件需要覆蓋想要生成的所有字符。字體主目錄下可以有子目錄，工具會遞歸查找指定的字體主目錄下所有字體文件。**注意：暫時不支援可變字體。**
+
+    字體文件可以在 [這裡](https://drive.google.com/file/d/1dy3ccgcR6SEnfohhZBRoziszsEXav4G2/view?usp=sharing) 下載。
+
 2. 準備一個文本文件，其中包含想要生成的所有字符的全集及其對應的字頻，字符與字頻之間應用製表符分割（字頻可省略），具體格式如下：
 
 ```

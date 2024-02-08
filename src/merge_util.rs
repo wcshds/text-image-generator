@@ -313,8 +313,12 @@ impl MergeUtil {
         let shape_font = font_img.shape();
         let shape_bg = bg_img.shape();
         let font_img = font_img.as_slice().expect("fail to read input `font_img`");
-        let font_img = GrayImage::from_vec(shape_font[1] as u32, shape_font[0] as u32, font_img.to_vec())
-            .expect("fail to cast input font_img to GrayImage");
+        let font_img = GrayImage::from_vec(
+            shape_font[1] as u32,
+            shape_font[0] as u32,
+            font_img.to_vec(),
+        )
+        .expect("fail to cast input font_img to GrayImage");
         let bg_img = bg_img.as_slice().expect("fail to read input `bg_img`");
         let bg_img = GrayImage::from_vec(shape_bg[1] as u32, shape_bg[0] as u32, bg_img.to_vec())
             .expect("fail to cast input bg_img to GrayImage");

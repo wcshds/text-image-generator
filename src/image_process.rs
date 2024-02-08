@@ -7,8 +7,10 @@ pub fn generate_image(
     swash_cache: &mut SwashCache,
     foreground_color: cosmic_text::Color,
     background_color: image::Rgb<u8>,
+    width: usize,
+    height: usize,
 ) -> ImageBuffer<image::Rgb<u8>, Vec<u8>> {
-    let mut raw_image = ImageBuffer::from_pixel(2000, 64, background_color);
+    let mut raw_image = ImageBuffer::from_pixel(width as u32, height as u32, background_color);
     let mut right_border = 0;
     // Draw the buffer (for performance, instead use SwashCache directly)
     editor.draw(
@@ -16,7 +18,7 @@ pub fn generate_image(
         swash_cache,
         foreground_color,
         |x, y, _, _, color| {
-            if x < 0 || x >= 2000 || y < 0 || y >= 64 || (x == 0 && y == 0) {
+            if x < 0 || x >= width as i32 || y < 0 || y >= height as i32 || (x == 0 && y == 0) {
                 return;
             }
             if x > right_border {
@@ -45,6 +47,6 @@ pub fn generate_image(
     );
 
     raw_image
-        .sub_image(0, 0, (right_border + 1) as u32, 64)
+        .sub_image(0, 0, (right_border + 1) as u32, height as u32)
         .to_image()
 }

@@ -133,8 +133,15 @@ impl Generator {
         // create one per application
         let swash_cache = SwashCache::new();
 
-        let mut buffer = Buffer::new(&mut font_system, Metrics::new(50.0, 64.0));
-        buffer.set_size(&mut font_system, 2500.0, 64.0);
+        let mut buffer = Buffer::new(
+            &mut font_system,
+            Metrics::new(config.font_size as f32, config.line_height as f32),
+        );
+        buffer.set_size(
+            &mut font_system,
+            config.font_img_width as f32,
+            config.font_img_height as f32,
+        );
 
         let main_font_list: Vec<_> = if config.main_font_list_file_path.len() > 0 {
             fs::read_to_string(&config.main_font_list_file_path)
@@ -342,12 +349,15 @@ impl Generator {
         let background_color =
             image::Rgb([background_color.0, background_color.1, background_color.2]);
 
+        let (img_width, img_height) = self.editor_buffer.size();
         let img = generate_image(
             &mut self.editor_buffer,
             &mut self.font_system,
             &mut self.swash_cache,
             text_color,
             background_color,
+            img_width as usize,
+            img_height as usize,
         );
 
         if apply_effect {

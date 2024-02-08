@@ -190,7 +190,7 @@ impl MergeUtil {
         );
 
         let top = Self::random_range_u32(1, bg_height - resize_height);
-        let left = Self::random_range_u32(1, bg_width - resize_width);
+        let left = Self::random_range_u32(0, bg_width - resize_width);
 
         let mut padded_img = GrayImage::from_pixel(bg_width, bg_height, Luma([0]));
         padded_img.copy_from(&font_img, left, top).unwrap();

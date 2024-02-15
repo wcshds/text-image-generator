@@ -343,7 +343,8 @@ impl Generator {
             cosmic_text::Shaping::Advanced,
         ));
 
-        self.editor_buffer.shape_until_scroll(&mut self.font_system);
+        self.editor_buffer
+            .shape_until_scroll(&mut self.font_system, true);
 
         let text_color = Color::rgb(text_color.0, text_color.1, text_color.2);
         let background_color =

@@ -25,7 +25,10 @@ impl BgFactory {
 
         for each_file in dir_list {
             let each_file = each_file.unwrap().path();
-            let extension = each_file.extension().unwrap();
+            let extension = match each_file.extension() {
+                Some(ext) => ext,
+                None => continue,
+            };
             if extension == "png" || extension == "jpg" || extension == "jpeg" {
                 image_paths.push(each_file)
             }
@@ -33,7 +36,10 @@ impl BgFactory {
 
         let mut images = Vec::with_capacity(image_paths.len());
         for image_path in image_paths {
-            let img = image::open(image_path).expect("image does not exist");
+            let img = match image::open(image_path) {
+                Ok(img) => img,
+                Err(_) => continue,
+            };
             let mut gray = image::imageops::grayscale(&img);
 
             let [origin_height, origin_width] = [gray.height(), gray.width()];
@@ -70,6 +76,10 @@ impl BgFactory {
             let cropped = gray.sub_image(x, y, width as u32, height as u32).to_image();
 
             images.push(cropped)
+        }
+
+        if images.len() == 0 {
+            panic!("No background image exists");
         }
 
         Self {
@@ -190,7 +200,7 @@ impl MergeUtil {
         );
 
         let top = Self::random_range_u32(1, bg_height - resize_height);
-        let left = Self::random_range_u32(0, bg_width - resize_width);
+        let left = Self::random_range_u32(1, bg_width - resize_width);
 
         let mut padded_img = GrayImage::from_pixel(bg_width, bg_height, Luma([0]));
         padded_img.copy_from(&font_img, left, top).unwrap();

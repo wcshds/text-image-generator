@@ -344,7 +344,7 @@ impl Generator {
         ));
 
         self.editor_buffer
-            .shape_until_scroll(&mut self.font_system, true);
+            .shape_until_scroll(&mut self.font_system, false);
 
         let text_color = Color::rgb(text_color.0, text_color.1, text_color.2);
         let background_color =

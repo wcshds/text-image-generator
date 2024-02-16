@@ -211,6 +211,10 @@ impl Generator {
         })
     }
 
+    fn set_bg_size(&mut self, height: usize, width: usize) {
+        self.bg_factory = BgFactory::new(&self.bg_factory.bg_dir, height, width);
+    }
+
     // fn set_latin_ch_dict(&mut self, ch: String, font_list: Vec<String>) {
     //     if let Some(content) = &mut self.latin_ch_dict {
     //         *content.entry(ch).or_insert(vec![]) = font_list;

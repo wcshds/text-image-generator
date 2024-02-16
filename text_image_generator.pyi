@@ -118,6 +118,16 @@ class Generator:
     main_font_list: str
 
     def __init__(self, config_path: str) -> None: ...
+    def set_bg_size(
+        self,
+        height: int,
+        width: int,
+    ):
+        """Set the background image's height and width.
+
+        :param height: specify the height of the background image
+        :param width: specify the width of the background image
+        """
     def get_random_chinese(
         self, min: int, max: int, add_extra_symbol: bool = False
     ) -> list[Tuple[str, list[Tuple[str, int, int, int]]]]:
@@ -143,7 +153,7 @@ class Generator:
         text_with_font_list: list[Tuple[str, list[Tuple[str, int, int, int]]]],
         text_color: Tuple[int, int, int],
         background_color: Tuple[int, int, int],
-        apply_effect: bool = False
+        apply_effect: bool = False,
     ) -> npt.NDArray:
         """
         Generate an image based on a given list of characters and font information.

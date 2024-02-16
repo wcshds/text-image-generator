@@ -14,8 +14,9 @@ use super::effect_helper::{
 #[pyclass]
 pub struct BgFactory {
     images: Vec<GrayImage>,
-    height: usize,
-    width: usize,
+    pub height: usize,
+    pub width: usize,
+    pub bg_dir: String,
 }
 
 impl BgFactory {
@@ -86,6 +87,7 @@ impl BgFactory {
             images,
             height,
             width,
+            bg_dir: dir.as_ref().to_string_lossy().to_string(),
         }
     }
 
